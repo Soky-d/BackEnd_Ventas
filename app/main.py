@@ -38,12 +38,23 @@ MAX_BCRYPT_BYTES = 72
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
 
-def _truncate_bytes(value: str) -> bytes:
+def _bcrypt_safe_str(password: str) -> str:
     """
-    Convierte a bytes UTF-8 y trunca a 72 bytes (bcrypt-safe)
+    Garantiza que la contraseña no exceda 72 bytes para bcrypt
+    y que passlib reciba un STRING válido.
     """
-    raw = value.encode("utf-8")
-    return raw[:MAX_BCRYPT_BYTES]
+    if not password:
+        raise ValueError("La contraseña no puede estar vacía")
+
+    # Paso 1: convertir a bytes
+    raw_bytes = password.encode("utf-8")
+
+    # Paso 2: truncar a 72 bytes
+    safe_bytes = raw_bytes[:MAX_BCRYPT_BYTES]
+
+    # Paso 3: volver a string SIN romper encoding
+    return safe_bytes.decode("utf-8", errors="ignore")
+
 
 def get_password_hash_2(password):
     return pwd_context.hash(password)
@@ -72,22 +83,17 @@ def verify_password_1(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    if not password:
-        raise ValueError("La contraseña no puede estar vacía")
-
-    password_bytes = _truncate_bytes(password)
-    return pwd_context.hash(password_bytes)
+    safe_password = _bcrypt_safe_str(password)
+    return pwd_context.hash(safe_password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if not plain_password or not hashed_password:
-        return False
-
     try:
-        password_bytes = _truncate_bytes(plain_password)
-        return pwd_context.verify(password_bytes, hashed_password)
+        safe_password = _bcrypt_safe_str(plain_password)
+        return pwd_context.verify(safe_password, hashed_password)
     except Exception as e:
         print("Error verificando contraseña:", e)
         return False
+
     
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React

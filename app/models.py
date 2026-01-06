@@ -1,7 +1,7 @@
 # models.py
 from sqlalchemy import Column, Integer, String, Text, Date, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
-
+import traceback
 from .database import Base
 
 class User(Base):
