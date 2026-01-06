@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import date
 from decimal import Decimal # Importar Decimal para manejar tipos Numeric
 from sqlalchemy.exc import IntegrityError
+import traceback
 
 # Importar func y literal_column para cálculos de SQLAlchemy
 from sqlalchemy import func, literal_column, asc, desc # Importar asc y desc para ordenar
@@ -169,6 +170,7 @@ async def create_user(user: schemas.UserCreate, db: Session = Depends(database.g
         db.rollback()
         # Log interno para debugging
         print("Error creando usuario:", e)
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno al crear el usuario")
 
 @app.get("/users/", response_model=List[schemas.User])
