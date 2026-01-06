@@ -32,29 +32,10 @@ app = FastAPI()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-MAX_BCRYPT_BYTES = 72
 
 # Función para hashear una contraseña
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
-
-def _bcrypt_safe_str(password: str) -> str:
-    """
-    Garantiza que la contraseña no exceda 72 bytes para bcrypt
-    y que passlib reciba un STRING válido.
-    """
-    if not password:
-        raise ValueError("La contraseña no puede estar vacía")
-
-    # Paso 1: convertir a bytes
-    raw_bytes = password.encode("utf-8")
-
-    # Paso 2: truncar a 72 bytes
-    safe_bytes = raw_bytes[:MAX_BCRYPT_BYTES]
-
-    # Paso 3: volver a string SIN romper encoding
-    return safe_bytes.decode("utf-8", errors="ignore")
-
 
 def get_password_hash_2(password):
     return pwd_context.hash(password)
@@ -66,35 +47,19 @@ def verify_password_2(password, hashed):
         print(f"Error al verificar contraseña: {e}")
         return False
 
-def get_password_hash_1(password: str) -> str:
+def get_password_hash(password: str) -> str:
     # Pre-hash SHA256
     sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    sha_trunc = sha[:72]
-    return pwd_context.hash(sha_trunc)
+    return pwd_context.hash(sha)
 
 # Función para verificar una contraseña hasheada
 # def verify_password(plain_password: str, hashed_password: str) -> bool:
 #    return pwd_context.verify(plain_password, hashed_password)
 
-def verify_password_1(plain_password: str, hashed_password: str) -> bool:
-    sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
-    sha_trunc = sha[:72]
-    return pwd_context.verify(sha_trunc, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    safe_password = _bcrypt_safe_str(password)
-    return pwd_context.hash(safe_password)
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    try:
-        safe_password = _bcrypt_safe_str(plain_password)
-        return pwd_context.verify(safe_password, hashed_password)
-    except Exception as e:
-        print("Error verificando contraseña:", e)
-        return False
+    sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+    return pwd_context.verify(sha, hashed_password)
 
-    
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
