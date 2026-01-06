@@ -32,11 +32,18 @@ app = FastAPI()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-MAX_BCRYPT_LENGTH = 72
+MAX_BCRYPT_BYTES = 72
 
 # Función para hashear una contraseña
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
+
+def _truncate_bytes(value: str) -> bytes:
+    """
+    Convierte a bytes UTF-8 y trunca a 72 bytes (bcrypt-safe)
+    """
+    raw = value.encode("utf-8")
+    return raw[:MAX_BCRYPT_BYTES]
 
 def get_password_hash_2(password):
     return pwd_context.hash(password)
@@ -65,44 +72,23 @@ def verify_password_1(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """
-    Genera el hash de una contraseña de forma segura.
-    Trunca la contraseña a 72 bytes para evitar errores de bcrypt.
-    """
     if not password:
         raise ValueError("La contraseña no puede estar vacía")
-    
-    # Pre-hash SHA256 opcional (mantener compatibilidad con tu sistema)
-    sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    
-    # Truncar a 72 bytes para bcrypt
-    sha_trunc = sha[:MAX_BCRYPT_LENGTH]
-    
-    # Generar hash bcrypt
-    hashed = pwd_context.hash(sha_trunc)
-    return hashed
+
+    password_bytes = _truncate_bytes(password)
+    return pwd_context.hash(password_bytes)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifica si la contraseña ingresada coincide con el hash guardado.
-    Trunca a 72 bytes antes de verificar.
-    """
     if not plain_password or not hashed_password:
         return False
-    
-    # Pre-hash SHA256 igual que en el hash
-    sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
-    
-    # Truncar a 72 bytes
-    sha_trunc = sha[:MAX_BCRYPT_LENGTH]
-    
+
     try:
-        return pwd_context.verify(sha_trunc, hashed_password)
+        password_bytes = _truncate_bytes(plain_password)
+        return pwd_context.verify(password_bytes, hashed_password)
     except Exception as e:
-        # Log interno para debug si algo falla
         print("Error verificando contraseña:", e)
         return False
-
+    
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
