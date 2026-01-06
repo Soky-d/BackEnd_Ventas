@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal # Importar Decimal para manejar tipos Numeric
-
+from sqlalchemy.exc import IntegrityError
 
 # Importar func y literal_column para cálculos de SQLAlchemy
 from sqlalchemy import func, literal_column, asc, desc # Importar asc y desc para ordenar
@@ -35,17 +35,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
 
-def get_password_hash(password):
+def get_password_hash_2(password):
     return pwd_context.hash(password)
 
-def verify_password(password, hashed):
+def verify_password_2(password, hashed):
     try:
         return pwd_context.verify(password, hashed)
     except Exception as e:
         print(f"Error al verificar contraseña: {e}")
         return False
 
-def get_password_hash_1(password: str) -> str:
+def get_password_hash(password: str) -> str:
     # Pre-hash SHA256
     sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
     return pwd_context.hash(sha)
@@ -54,17 +54,17 @@ def get_password_hash_1(password: str) -> str:
 # def verify_password(plain_password: str, hashed_password: str) -> bool:
 #    return pwd_context.verify(plain_password, hashed_password)
 
-def verify_password_1(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
     return pwd_context.verify(sha, hashed_password)
 
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
-    # "http://localhost:3000",  # La URL de tu aplicación React
-    # "http://127.0.0.1:3000",
-    "https://appventasfront.onrender.com" # React en producción
-    # Puedes añadir otras URLs si tu frontend se ejecuta en otros dominios/puertos
+     "http://localhost:3000",  # La URL de tu aplicación React
+     "http://127.0.0.1:3000",
+     "https://appventasfront.onrender.com" # React en producción
+     # Puedes añadir otras URLs si tu frontend se ejecuta en otros dominios/puertos
 ]
 
 app.add_middleware(
@@ -133,22 +133,43 @@ async def login_user(login_data: schemas.LoginRequest, db: Session = Depends(dat
 async def create_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     """Crea un nuevo usuario con la clave hasheada."""
     # Verificar si el email o usuario ya existen
-    db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user_email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
-    
-    db_user_username = db.query(models.User).filter(models.User.usuario == user.usuario).first()
-    if db_user_username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre de usuario ya está en uso")
+    try:
+        db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
+        if db_user_email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
+        
+        db_user_username = db.query(models.User).filter(models.User.usuario == user.usuario).first()
+        if db_user_username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre de usuario ya está en uso")
 
-    # Hashear la contraseña antes de guardar
-    hashed_password = get_password_hash(user.clave)
-    db_user = models.User(**user.model_dump(exclude={"clave"}), clave=hashed_password)
+        # Hashear la contraseña antes de guardar
+        hashed_password = get_password_hash(user.clave)
+        # db_user = models.User(**user.model_dump(exclude={"clave"}), clave=hashed_password)
+        db_user = models.User(
+            apel_pat=user.apel_pat[:30],
+            apel_mat=user.apel_mat[:30],
+            nombres=user.nombres[:50],
+            email=user.email[:100],
+            telefono=user.telefono[:20] if user.telefono else None,
+            usuario=user.usuario[:10],
+            tipo=user.tipo[:1],
+            promo=user.promo[:4] if user.promo else None,
+            clave=hashed_password
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
     
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error de integridad en la base de datos: posiblemente email o usuario duplicado")
+    except Exception as e:
+        db.rollback()
+        # Log interno para debugging
+        print("Error creando usuario:", e)
+        raise HTTPException(status_code=500, detail="Error interno al crear el usuario")
 
 @app.get("/users/", response_model=List[schemas.User])
 async def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
