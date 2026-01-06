@@ -39,7 +39,10 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def verify_password(password, hashed):
-    return pwd_context.verify(password, hashed)
+    try:
+        return pwd_context.verify(password, hashed)
+    except Exception:
+        return False
 
 def get_password_hash_1(password: str) -> str:
     # Pre-hash SHA256
@@ -58,8 +61,8 @@ def verify_password_1(plain_password: str, hashed_password: str) -> bool:
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
     "http://localhost:3000",  # La URL de tu aplicación React
-    # "http://127.0.0.1:3000",
-    "https://https://appventasfront.onrender.com" # React en producción
+    "http://127.0.0.1:3000",
+    "https://appventasfront.onrender.com" # React en producción
     # Puedes añadir otras URLs si tu frontend se ejecuta en otros dominios/puertos
 ]
 
