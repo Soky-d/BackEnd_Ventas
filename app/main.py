@@ -41,7 +41,8 @@ def get_password_hash(password):
 def verify_password(password, hashed):
     try:
         return pwd_context.verify(password, hashed)
-    except Exception:
+    except Exception as e:
+        print(f"Error al verificar contraseña: {e}")
         return False
 
 def get_password_hash_1(password: str) -> str:
