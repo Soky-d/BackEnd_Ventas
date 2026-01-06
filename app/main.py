@@ -49,7 +49,8 @@ def verify_password_2(password, hashed):
 def get_password_hash(password: str) -> str:
     # Pre-hash SHA256
     sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    return pwd_context.hash(sha)
+    sha_trunc = sha[:72]
+    return pwd_context.hash(sha_trunc)
 
 # Función para verificar una contraseña hasheada
 # def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -57,7 +58,8 @@ def get_password_hash(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
-    return pwd_context.verify(sha, hashed_password)
+    sha_trunc = sha[:72]
+    return pwd_context.verify(sha_trunc, hashed_password)
 
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
