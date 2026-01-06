@@ -32,6 +32,8 @@ app = FastAPI()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+MAX_BCRYPT_LENGTH = 72
+
 # Función para hashear una contraseña
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
@@ -46,7 +48,7 @@ def verify_password_2(password, hashed):
         print(f"Error al verificar contraseña: {e}")
         return False
 
-def get_password_hash(password: str) -> str:
+def get_password_hash_1(password: str) -> str:
     # Pre-hash SHA256
     sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
     sha_trunc = sha[:72]
@@ -56,10 +58,50 @@ def get_password_hash(password: str) -> str:
 # def verify_password(plain_password: str, hashed_password: str) -> bool:
 #    return pwd_context.verify(plain_password, hashed_password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password_1(plain_password: str, hashed_password: str) -> bool:
     sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
     sha_trunc = sha[:72]
     return pwd_context.verify(sha_trunc, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    """
+    Genera el hash de una contraseña de forma segura.
+    Trunca la contraseña a 72 bytes para evitar errores de bcrypt.
+    """
+    if not password:
+        raise ValueError("La contraseña no puede estar vacía")
+    
+    # Pre-hash SHA256 opcional (mantener compatibilidad con tu sistema)
+    sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    
+    # Truncar a 72 bytes para bcrypt
+    sha_trunc = sha[:MAX_BCRYPT_LENGTH]
+    
+    # Generar hash bcrypt
+    hashed = pwd_context.hash(sha_trunc)
+    return hashed
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verifica si la contraseña ingresada coincide con el hash guardado.
+    Trunca a 72 bytes antes de verificar.
+    """
+    if not plain_password or not hashed_password:
+        return False
+    
+    # Pre-hash SHA256 igual que en el hash
+    sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+    
+    # Truncar a 72 bytes
+    sha_trunc = sha[:MAX_BCRYPT_LENGTH]
+    
+    try:
+        return pwd_context.verify(sha_trunc, hashed_password)
+    except Exception as e:
+        # Log interno para debug si algo falla
+        print("Error verificando contraseña:", e)
+        return False
 
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
