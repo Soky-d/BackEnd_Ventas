@@ -60,8 +60,8 @@ def verify_password_1(plain_password: str, hashed_password: str) -> bool:
 # Configuración de CORS para permitir que tu frontend React acceda al backend
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
-    "http://localhost:3000",  # La URL de tu aplicación React
-    "http://127.0.0.1:3000",
+    # "http://localhost:3000",  # La URL de tu aplicación React
+    # "http://127.0.0.1:3000",
     "https://appventasfront.onrender.com" # React en producción
     # Puedes añadir otras URLs si tu frontend se ejecuta en otros dominios/puertos
 ]
