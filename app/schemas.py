@@ -13,7 +13,9 @@ class UserBase(BaseModel):
     telefono: Optional[str] = Field(None, max_length=20)
     usuario: str = Field(..., max_length=10)
     tipo: str = Field(..., max_length=1)
+    clave: Optional[str] = Field(None)
     promo: Optional[str] = Field(None, max_length=4)
+
 
 # Esquema para crear un usuario (incluye la clave)
 class UserCreate(UserBase):
