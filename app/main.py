@@ -35,7 +35,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 #def get_password_hash(password: str) -> str:
 #    return pwd_context.hash(password)
 
-def get_password_hash(password: str) -> str:
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def verify_password(password, hashed):
+    return pwd_context.verify(password, hashed)
+
+def get_password_hash_1(password: str) -> str:
     # Pre-hash SHA256
     sha = hashlib.sha256(password.encode("utf-8")).hexdigest()
     return pwd_context.hash(sha)
@@ -44,7 +50,7 @@ def get_password_hash(password: str) -> str:
 # def verify_password(plain_password: str, hashed_password: str) -> bool:
 #    return pwd_context.verify(plain_password, hashed_password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password_1(plain_password: str, hashed_password: str) -> bool:
     sha = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
     return pwd_context.verify(sha, hashed_password)
 
