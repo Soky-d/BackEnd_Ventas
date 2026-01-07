@@ -26,11 +26,21 @@ from app import models, schemas, database
 from fastapi.middleware.cors import CORSMiddleware # <--- Añadir esta línea
 
 from app.schemas import VentaDetalleOut
+
+from app.routers import dni
+
 # from .auth import get_current_user
 
 app = FastAPI()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+import requests
+import os
+
+app.include_router(dni.router)
+
+
 
 
 # Función para hashear una contraseña

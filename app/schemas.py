@@ -152,3 +152,10 @@ class ResumenVentasOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DNIResponse(BaseModel):
+    dni: str
+    nombres: str
+    apellido_paterno: str
+    apellido_materno: str
+    nombre_completo: str
