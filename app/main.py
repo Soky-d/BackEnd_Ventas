@@ -74,7 +74,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # Ajusta el "http://localhost:3000" a la URL donde se ejecuta tu aplicación React
 origins = [
      "http://localhost:3000",  # La URL de tu aplicación React
+     "http://localhost:3001",  # La URL de tu aplicación React
      "http://127.0.0.1:3000",
+     "http://127.0.0.1:3001",
      "https://appventasfront.onrender.com" # React en producción
      # Puedes añadir otras URLs si tu frontend se ejecuta en otros dominios/puertos
 ]
@@ -146,9 +148,9 @@ async def create_user(user: schemas.UserCreate, db: Session = Depends(database.g
     """Crea un nuevo usuario con la clave hasheada."""
     # Verificar si el email o usuario ya existen
     try:
-        db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
-        if db_user_email:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
+        #db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
+        #if db_user_email:
+        #    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
         
         db_user_username = db.query(models.User).filter(models.User.usuario == user.usuario).first()
         if db_user_username:
@@ -208,10 +210,10 @@ async def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session
     update_data = user_update.model_dump(exclude_unset=True)
 
     # Verificar conflictos de email o usuario con otros usuarios
-    if "email" in update_data and update_data["email"] != db_user.email:
-        existing_email_user = db.query(models.User).filter(models.User.email == update_data["email"]).first()
-        if existing_email_user and existing_email_user.id != user_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nuevo email ya está registrado por otro usuario")
+    #if "email" in update_data and update_data["email"] != db_user.email:
+    #    existing_email_user = db.query(models.User).filter(models.User.email == update_data["email"]).first()
+    #    if existing_email_user and existing_email_user.id != user_id:
+    #        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nuevo email ya está registrado por otro usuario")
     
     if "usuario" in update_data and update_data["usuario"] != db_user.usuario:
         existing_username_user = db.query(models.User).filter(models.User.usuario == update_data["usuario"]).first()
