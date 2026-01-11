@@ -29,6 +29,8 @@ from app.schemas import VentaDetalleOut
 
 from app.routers import dni
 
+from sqlalchemy import exists
+
 # from .auth import get_current_user
 
 app = FastAPI()
@@ -238,6 +240,16 @@ async def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
+    has_payments = db.query(
+        exists().where(models.Sale.usuario == db_user.usuario)
+        ).scalar()
+
+    if has_payments:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar usuario, ha realizado ventas"
+        )
+    
     db.delete(db_user)
     db.commit()
     return {"message": "Usuario eliminado exitosamente"}
@@ -250,6 +262,17 @@ async def create_sale(
     current_user: models.User = Depends(get_current_user), # Obtener el usuario logeado
     db: Session = Depends(database.get_db)
 ):
+     
+    sale_exist = db.query(models.Sale).filter(
+        models.Sale.dni == sale.dni
+    ).first()
+
+    if sale_exist:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El DNI ya se encuentra registrado"
+        )
+    
     # Calcular importe y total
     calculated_importe =  sale.precio_unitario
     calculated_total = sale.cantidad * calculated_importe 
@@ -343,6 +366,16 @@ async def delete_sale(sale_id: int, db: Session = Depends(database.get_db)):
     if db_sale is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrado")
     
+    has_payments = db.query(
+        exists().where(models.Payment.dni == db_sale.dni)
+        ).scalar()
+
+    if has_payments:
+        raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="No se puede eliminar la venta porque tiene pagos registrados"
+    )
+    
     db.delete(db_sale)
     db.commit()
     return {"message": "Venta eliminado exitosamente"}
@@ -409,14 +442,32 @@ async def create_payment(
     db.refresh(db_payment)
     return db_payment
 
-@app.get("/payments/", response_model=List[schemas.Payment])
+@app.get("/payments/",  response_model=list[schemas.PaymentOut])
 async def read_payments(
     current_user: models.User = Depends(get_current_user),
     skip: int = 0, limit: int = 100,
     db: Session = Depends(get_db)
 ):
     # Traer todos los pagos registrados por el usuario actual
-    payments = db.query(models.Payment).filter(models.Payment.registrador_username_fk == current_user.usuario).offset(skip).limit(limit).all()
+    # payments = db.query(models.Payment).filter(models.Payment.registrador_username_fk == current_user.usuario).offset(skip).limit(limit).all()
+
+    payments = (
+        db.query(
+            models.Payment.id,
+            models.Payment.dni,
+            models.Sale.nombres,
+            models.Payment.fecha,
+            models.Payment.pago,
+            models.Payment.tipo,
+            models.Payment.det_tipo,
+            models.Payment.promo
+        )
+        .outerjoin(models.Sale, models.Payment.dni == models.Sale.dni)
+        .filter(models.Payment.registrador_username_fk == current_user.usuario)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )   
     return payments
 
 @app.get("/payments/{payment_id}", response_model=schemas.Payment)
@@ -694,3 +745,181 @@ def get_consulta_ventas(
     return query.all()
 
 
+# Esquema para la respuesta de saldo
+class LiquidaResponse(BaseModel):
+    usuario_lq: str
+    promo:str
+    nombres: Optional[str] # Nombre del cliente, si lo obtenemos de una venta
+    total_ventas: float
+    total_pagos: float
+    saldo_pendiente: float
+    total_cobros: float
+
+@app.get("/liquida/balance/{usuario_lq}", response_model=LiquidaResponse)
+async def get_client_liquida(
+    usuario_lq: str,
+    current_user: models.User = Depends(get_current_user), # No se usa current_user directamente para filtrar aquí, pero se mantiene para autenticación
+    db: Session = Depends(get_db)
+):
+    print("LIQUIDA RECIBIDA 2:", usuario_lq)
+
+    # Suma de ventas por DNI
+    total_sales_result = db.query(func.sum(models.Sale.total)).filter(
+        models.Sale.usuario== usuario_lq
+    ).scalar()
+    total_ventas = float(total_sales_result) if total_sales_result else 0.0
+
+    # Suma de pagos por promotor
+    total_liquida_result = db.query(func.sum(models.Liquida.pago)).filter(
+        models.Liquida.usuario_lq == usuario_lq
+    ).scalar()
+    total_pagos = float(total_liquida_result) if total_liquida_result else 0.0
+
+    # Suma de pagos por usuario
+    total_payments_result = db.query(func.sum(models.Payment.pago)).filter(
+        models.Payment.registrador_username_fk == usuario_lq
+    ).scalar()
+    total_cobra = float(total_payments_result) if total_payments_result else 0.0
+
+    saldo_pendiente = total_ventas - total_pagos
+
+    # Intentar obtener el nombre del cliente de alguna venta para mostrarlo
+    client_promo_result = db.query(models.User.promo ).filter(models.User.usuario == usuario_lq).first()
+    client_promo = client_promo_result.promo if client_promo_result else "None"
+
+    client_name_result = db.query(func.concat(models.User.nombres , ' ', models.User.apel_pat , ' ', models.User.apel_mat).label("nombre")).filter(models.User.usuario == usuario_lq).first()
+    client_name = client_name_result.nombre if client_name_result else None
+
+    return LiquidaResponse(
+        usuario_lq=usuario_lq,
+        promo=client_promo,
+        nombres=client_name,
+        total_ventas=total_ventas,
+        total_pagos=total_pagos,
+        saldo_pendiente=saldo_pendiente,
+        total_cobros=total_cobra
+    )
+
+
+@app.post("/liquida/", response_model=schemas.Liquida, status_code=status.HTTP_201_CREATED)
+async def create_liquida(
+    liquida: schemas.LiquidaCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    print("LIQUIDA RECIBIDA 1:", liquida.usuario_lq)
+
+    db_liquida = models.Liquida(
+        usuario_lq=liquida.usuario_lq,
+        promo=liquida.promo,
+        fecha=liquida.fecha,
+        pago=liquida.pago,
+        tipo=liquida.tipo,
+        det_tipo=liquida.det_tipo,
+        registrador_username_fk=current_user.usuario
+    )
+    db.add(db_liquida)
+    db.commit()
+    db.refresh(db_liquida)
+    return db_liquida
+
+@app.get("/liquida/", response_model=List[schemas.LiquidaOut])
+async def read_liquida(
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0, limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    # Traer todos los pagos registrados por el usuario actual
+    liquidas = (
+                db.query(
+                          models.Liquida.usuario_lq,
+                          func.concat(
+                             models.User.nombres, ' ',
+                             models.User.apel_pat, ' ',
+                             models.User.apel_mat
+                          ).label("nombres"),
+                          models.Liquida.promo,
+                          models.Liquida.fecha,
+                          models.Liquida.pago,
+                          models.Liquida.tipo,
+                          models.Liquida.det_tipo
+                        )
+                    .outerjoin(models.User, models.Liquida.usuario_lq == models.User.usuario)
+                    .all()
+                )
+    return liquidas
+    #liquidas = db.query(models.Liquida).filter(models.Liquida.registrador_username_fk == current_user.usuario).offset(skip).limit(limit).all()
+    
+
+@app.get("/liquida/{liquida_id}", response_model=schemas.Liquida)
+async def read_liquida(
+    liquida_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    payment = db.query(models.Liquida).filter(
+        models.Liquida.id == liquida_id,
+        models.Liquida.registrador_username_fk == current_user.usuario
+    ).first()
+    if payment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado o no pertenece al usuario autenticado")
+    return payment
+
+@app.put("/liquida/{liquida_id}", response_model=schemas.Liquida)
+async def update_liquida(
+    liquida_id: int,
+    liquida_update: schemas.LiquidaUpdate, # Usamos LiquidaUpdate
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_liquida = db.query(models.Liquida).filter(
+        models.Liquida.id == liquida_id,
+        models.Liquida.registrador_username_fk == current_user.usuario
+    ).first()
+    if db_liquida is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado o no pertenece al usuario autenticado")
+
+    update_data = liquida_update.model_dump(exclude_unset=True)
+    update_data.pop("usuario", None)
+    update_data.pop("promo", None)
+
+    for key, value in update_data.items():
+        setattr(db_liquida, key, value)
+
+    db.commit()
+    db.refresh(db_liquida)
+    return db_liquida
+
+
+@app.delete("/liquida/{liquida_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_payment(
+    liquida_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_liquida = db.query(models.Liquida).filter(
+        models.Liquida.id == liquida_id,
+        models.Liquida.registrador_username_fk == current_user.usuario
+    ).first()
+    if db_liquida is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pago no encontrado o no pertenece al usuario autenticado")
+    
+    db.delete(db_liquida)
+    db.commit()
+    return {"message": "Pago eliminado exitosamente"}
+
+@app.get("/promoters/", response_model=list[schemas.PromoterOut])
+def get_promoters(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    promoters = db.query(
+        models.User.id,
+        func.concat(models.User.nombres , ' ', models.User.apel_pat , ' ', models.User.apel_mat).label("nombres"),
+        models.User.usuario,
+        models.User.promo
+    ).filter(
+        models.User.tipo == "2"
+    ).all()
+
+    return promoters

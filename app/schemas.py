@@ -110,6 +110,19 @@ class Payment(PaymentBase):
         from_attributes = True
         populate_by_name = True # Necesario para que 'alias' funcione correctamente al serializar
 
+class PaymentOut(BaseModel):
+    id: int
+    dni: str
+    nombres: Optional[str]
+    fecha: date
+    pago: float
+    tipo: str
+    det_tipo: Optional[str]
+    promo: str
+
+    class Config:
+        from_attributes = True        
+
 # Esquema para una transacción individual en el estado de cuenta
 class StatementTransaction(BaseModel):
     fecha: date
@@ -159,3 +172,52 @@ class DNIResponse(BaseModel):
     apellido_paterno: str
     apellido_materno: str
     nombre_completo: str
+
+# --- Nuevos Esquemas para Liquidacion  ---
+class LiquidaBase(BaseModel):
+    usuario_lq: str = Field(..., max_length=10)
+    promo: str = Field(..., max_length=4)
+    fecha: date
+    pago: float = Field(..., gt=0)
+    tipo: str = Field(..., max_length=1)
+    det_tipo: Optional[str] = Field(None, max_length=50)
+
+    # Los campos 'usuario' .
+
+class LiquidaCreate(LiquidaBase):
+    pass
+
+class LiquidaUpdate(LiquidaBase): # Nuevo esquema para la actualización de pagos
+    usuario_ld: str = Field(..., max_length=10)
+    promo: str = Field(..., max_length=4)
+    fecha: Optional[date] = Field(None, description="Fecha del pago (YYYY-MM-DD)")
+    pago: Optional[float] = Field(None, gt=0, description="Monto del pago, debe ser mayor que 0")
+    tipo: Optional[str] = Field(None, max_length=1, description="Tipo de pago (ej. 'E' efectivo, 'T' tarjeta)")
+    det_tipo: Optional[str] = Field(None, max_length=50, description="Detalle del tipo de pago")
+
+class Liquida(LiquidaBase):
+    id: int
+    # Mapeamos 'registrador_username_fk' del modelo a 'usuario' en el esquema de respuesta
+    registrador_username_fk: str #= Field(..., alias="registrador_username_fk", description="Nombre de usuario que registró el pago")
+
+    class Config:
+        from_attributes = True
+        #populate_by_name = True # Necesario para que 'alias' funcione correctamente al serializar
+
+class PromoterOut(BaseModel):
+    id: int
+    nombres: str
+    usuario: str
+    promo: str
+
+    class Config:
+        from_attributes = True
+
+class LiquidaOut(BaseModel):
+    usuario_lq: str
+    nombres: str
+    promo: str 
+    fecha: date
+    pago: float 
+    tipo: str 
+    det_tipo: Optional[str] 

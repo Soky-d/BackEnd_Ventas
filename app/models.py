@@ -81,3 +81,21 @@ class Payment(Base):
 
     def __repr__(self):
         return f"<Payment(id={self.id}, dni='{self.dni}', pago='{self.pago}')>"
+    
+ # Nuevo modelo para Liquida (Opcional) 
+class Liquida(Base):
+    __tablename__ = "liquida"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_lq = Column(String(10), nullable=False)
+    promo = Column(String(4), nullable=False)
+    fecha = Column(Date, nullable=False)
+    pago = Column(Numeric(12,2), nullable=False)
+    tipo = Column(String(1), nullable=False)
+    det_tipo = Column(String(50))
+
+    registrador_username_fk = Column(
+        String(10),
+        ForeignKey("usuarios.usuario"),
+        nullable=False
+    )
