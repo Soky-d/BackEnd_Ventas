@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import date
 from decimal import Decimal # Importar Decimal para manejar tipos Numeric
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import case
 import traceback
 
 # Importar func y literal_column para cálculos de SQLAlchemy
@@ -923,3 +924,110 @@ def get_promoters(
     ).all()
 
     return promoters
+
+
+# --- NUEVO ENDPOINT: CONSULTA DE ESTADO DE CUENTA ---
+
+@app.get("/ConsultaLiq/{usuario_lq}", response_model=schemas.ClientAccountStatement)
+async def get_account_statement(
+    usuario_lq: str,
+    current_user: models.User = Depends(get_current_user), # Asegura que el usuario esté autenticado
+    db: Session = Depends(get_db)
+):
+
+    user_tipo = int(current_user.tipo)
+
+    if user_tipo != 1:
+       raise HTTPException(
+             status_code=403,
+             detail="No tiene permiso para esta consulta"
+       )
+
+    
+    # 1. Obtener información del cliente (nombre, promoción)
+    client_info = db.query( func.concat(
+                             models.User.nombres, ' ',
+                             models.User.apel_pat, ' ',
+                             models.User.apel_mat
+                            ).label("nombres"),
+                            models.User.promo,)\
+                    .filter(models.User.usuario == usuario_lq)\
+                    .first()
+    
+    nombres_cliente = client_info.nombres if client_info and client_info.nombres else None
+    # Podría ser mejor obtener la promoción del usuario actual, o del usuario que registró la última transacción
+    # Por ahora, se puede dejar en None o buscar de la tabla Sale/Payment si se guardó ahí.
+    # Si la promoción es del cliente (no del vendedor), necesitaríamos una tabla de Clientes.
+    # Por simplicidad, obtenemos la promoción del User que registró la primera venta encontrada.
+    promocion_cliente = client_info.promo if client_info and client_info.promo else None
+
+
+    # 2. Obtener todas las ventas y pagos para el usuario dado
+    #sales = db.query(models.Sale).filter(models.Sale.vendedor_username_fk == usuario_lq).all()
+
+    sales =db.query(
+            func.sum(models.Sale.cantidad).label("cantidad"),
+            func.sum(models.Sale.total).label("total")
+            ).filter(models.Sale.usuario == usuario_lq).group_by(models.Sale.usuario).first()  
+
+    safec =db.query(models.Sale.fecha).filter(models.Sale.usuario == usuario_lq).order_by(models.Sale.fecha.asc()).first()
+    
+    payments = db.query(models.Liquida).filter(models.Liquida.usuario_lq == usuario_lq).all()
+
+    cantidad = sales.cantidad if sales else 0
+    total = sales.total if sales else 0
+
+    transactions = []
+    #for sale in sales:
+    transactions.append({
+        "fecha": safec.fecha if safec else date.today(),
+        "descripcion": f"Separación de asistencia {cantidad} ",
+        "tipo_transaccion": "Separación",
+        "monto": total,
+        "saldo_acumulado": Decimal('0.00') # Se calculará después
+    })
+    
+    for payment in payments:
+        tipo_pago_texto = case(
+            (payment.tipo == "E", "Efectivo"),
+            (payment.tipo == "T", "Tarjeta"),
+            (payment.tipo == "P", "Plin"),
+            (payment.tipo == "Y", "Yape"),
+            (payment.tipo == "R", "Transferencia"),
+            else_="Desconocido"
+        ).label("tipo_texto")
+        tipo_texto = db.query(tipo_pago_texto).filter(models.Liquida.id == payment.id).first()[0]
+        
+        transactions.append({
+            "fecha": payment.fecha,
+            "descripcion": f"Pago (Tipo: {tipo_texto})",
+            "tipo_transaccion": "Pago",
+            "monto": payment.pago,
+            "saldo_acumulado": Decimal('0.00') # Se calculará después
+        })
+
+    # 3. Ordenar las transacciones por fecha (y luego por tipo si las fechas son iguales, ej. compras antes que pagos)
+    transactions.sort(key=lambda x: (x["fecha"], x["tipo_transaccion"]))
+
+    # 4. Calcular el saldo acumulado
+    saldo_actual = Decimal('0.00')
+    processed_transactions = []
+    for t in transactions:
+        if t["tipo_transaccion"] == "Separación":
+            saldo_actual += t["monto"]
+        elif t["tipo_transaccion"] == "Pago":
+            saldo_actual -= t["monto"]
+        
+        t["saldo_acumulado"] = saldo_actual
+        processed_transactions.append(schemas.StatementTransaction(**t)) # Convertir a Pydantic
+
+    return schemas.PromotoresAccountStatement(
+        dni="",
+        usuario_lq=usuario_lq,
+        nombres_cliente=nombres_cliente,
+        promocion_cliente=promocion_cliente,
+        saldo_final=float(saldo_actual),
+        transacciones=processed_transactions
+    )
+
+

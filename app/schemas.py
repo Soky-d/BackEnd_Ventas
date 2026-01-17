@@ -221,3 +221,21 @@ class LiquidaOut(BaseModel):
     pago: float 
     tipo: str 
     det_tipo: Optional[str] 
+
+# Esquema para el estado de cuenta completo del cliente
+class TransaccionOut(BaseModel):
+    fecha: date
+    descripcion: str
+    tipo_transaccion: str
+    monto: float
+    saldo_acumulado: float
+    class Config:
+        from_attributes = True
+
+class PromotoresAccountStatement(BaseModel):
+    dni: str
+    usuario_lq: str
+    nombres_cliente: Optional[str]
+    promocion_cliente: Optional[str]
+    saldo_final: float
+    transacciones: List[TransaccionOut]
