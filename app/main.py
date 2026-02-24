@@ -285,6 +285,8 @@ async def create_sale(
         cantidad=sale.cantidad,
         importe=calculated_importe,
         total=calculated_total,
+        ticket=sale.ticket,
+        celular=sale.celular,
         # usuario=current_user.usuario,  Usuario que realiza la venta 
         usuario = current_user.usuario,
         vendedor_username_fk=current_user.usuario, # Asigna el nombre de usuario a la clave foránea
@@ -386,6 +388,7 @@ async def delete_sale(sale_id: int, db: Session = Depends(database.get_db)):
 class BalanceResponse(BaseModel):
     dni: str
     nombres: Optional[str] # Nombre del cliente, si lo obtenemos de una venta
+    ticket: Optional[str] # Tipo del cliente, si lo obtenemos de una venta o del usuario logeado
     total_compras: float
     total_pagos: float
     saldo_pendiente: float
@@ -414,9 +417,13 @@ async def get_client_balance(
     client_name_result = db.query(models.Sale.nombres).filter(models.Sale.dni == dni).first()
     client_name = client_name_result.nombres if client_name_result else None
 
+    client_ticket_result = db.query(models.Sale.ticket).filter(models.Sale.dni == dni).first()
+    client_ticket = client_ticket_result.ticket if client_ticket_result else None
+
     return BalanceResponse(
         dni=dni,
         nombres=client_name,
+        ticket=client_ticket,
         total_compras=total_compras,
         total_pagos=total_pagos,
         saldo_pendiente=saldo_pendiente
@@ -457,6 +464,7 @@ async def read_payments(
             models.Payment.id,
             models.Payment.dni,
             models.Sale.nombres,
+            models.Sale.ticket,
             models.Payment.fecha,
             models.Payment.pago,
             models.Payment.tipo,
@@ -631,10 +639,11 @@ def get_consulta_ventas(
         db.query(
             models.Sale.dni.label("dni"),
             models.Sale.nombres.label("nombres"),
+            models.Sale.ticket.label("ticket"),
             func.sum(models.Sale.cantidad).label("cantidad"),
             func.sum(models.Sale.total).label("total"),
         )
-        .group_by(models.Sale.dni, models.Sale.nombres)
+        .group_by(models.Sale.dni, models.Sale.nombres, models.Sale.ticket)
         .subquery()
     )
 
@@ -649,6 +658,7 @@ def get_consulta_ventas(
         db.query(
             resu_subq.c.dni,
             resu_subq.c.nombres,
+            resu_subq.c.ticket,
             resu_subq.c.cantidad,
             resu_subq.c.total,
             func.coalesce(pagos_subq, 0).label("pagos"),
@@ -683,10 +693,11 @@ def get_consulta_ventas(
             models.Sale.dni.label("dni"),
             models.Sale.promo.label("promo"),
             models.Sale.nombres.label("nombres"),
+            models.Sale.ticket.label("ticket"),
             func.sum(models.Sale.cantidad).label("cantidad"),
             func.sum(models.Sale.total).label("total"),
         )
-        .group_by(models.Sale.dni, models.Sale.promo, models.Sale.nombres)
+        .group_by(models.Sale.dni, models.Sale.promo, models.Sale.nombres, models.Sale.ticket)
         .subquery()
     )
 
@@ -701,6 +712,7 @@ def get_consulta_ventas(
         db.query(
             resu_subq.c.dni,
             resu_subq.c.nombres,
+            resu_subq.c.ticket,
             resu_subq.c.cantidad,
             func.coalesce(resu_subq.c.total,0).label("total"),
             func.coalesce(pagos_subq, 0).label("pagos"),

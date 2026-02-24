@@ -52,6 +52,8 @@ class SaleBase(BaseModel):
     nombres: str = Field(..., max_length=100)
     fecha: date = Field(..., description="Fecha de la compra (YYYY-MM-DD)")
     cantidad: int = Field(..., gt=0, description="Cantidad de entradas, debe ser mayor que 0")
+    ticket: Optional[str] = Field(None, max_length=5, description="Número de ticket o referencia de la venta")
+    celular: Optional[str] = Field(None, max_length=10, description="Número de celular del cliente")
     
     #  precio_unitario: float = Field(..., gt=0, description="Precio por cada entrada")
 
@@ -67,6 +69,8 @@ class SaleUpdate(SaleBase):
     fecha: Optional[date] = Field(None, description="Fecha de la compra (YYYY-MM-DD)")
     cantidad: Optional[int] = Field(None, gt=0, description="Cantidad de entradas, debe ser mayor que 0")
     precio_unitario: Optional[float] = Field(None, gt=0, description="Precio por cada entrada")
+    ticket: Optional[str] = Field(None, max_length=5, description="Número de ticket o referencia de la venta")
+    celular: Optional[str] = Field(None, max_length=10, description="Número de celular del cliente")
 
 class Sale(SaleBase):
     id: int
@@ -139,6 +143,7 @@ class ClientAccountStatement(BaseModel):
     dni: str
     nombres_cliente: Optional[str] = None
     promocion_cliente: Optional[str] = None # Si se necesita mostrar la promoción asociada al cliente
+    ticket: Optional[str] = None # Si se desea mostrar el número de ticket asociado a la última compra
     transacciones: List[StatementTransaction]
     saldo_final: Decimal
 
@@ -148,6 +153,7 @@ class ClientAccountStatement(BaseModel):
 class VentaDetalleOut(BaseModel):
     dni: str
     nombres: str
+    ticket: Optional[str]
     cantidad: int
     total: Decimal
     pagos: Decimal

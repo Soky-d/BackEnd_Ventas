@@ -38,6 +38,8 @@ class Sale(Base):
     id = Column(Integer, primary_key=True, index=True)
     dni = Column(String(10), nullable=False)
     nombres = Column(String(100), nullable=False)
+    ticket = Column(String(5)) # Nuevo campo para el número de ticket o referencia de la venta
+    celular = Column(String(10)) # Nuevo campo para el número de celular del cliente
     fecha = Column(Date, nullable=False)
     cantidad = Column(Integer, nullable=False)
     importe = Column(Numeric(12,2), nullable=False) # Precio 
